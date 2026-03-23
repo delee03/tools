@@ -57,7 +57,7 @@ const envSchema = z.object({
   AGENT_ID: z.string().default("orchestratorAgent"),
   WS_URL: z.string().startsWith("wss://").or(z.string().startsWith("ws://")),
   WS_TOPIC: z.string().startsWith("/"),
-  TIMEOUT: z.coerce.number().int().positive().default(120_000),
+  IDLE_TIMEOUT: z.coerce.number().int().positive().default(30_000),
   AGENT_HEADERS: headers(),
   WS_STOMP_HEADERS: headers(),
   WS_HEADERS: headers(),
@@ -278,19 +278,27 @@ program
       processedEventCount = 0;
 
       const done = new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(
-          () => reject(new Error(`Timed out after ${config.TIMEOUT}ms`)),
-          config.TIMEOUT,
-        );
+        const onIdle = () =>
+          reject(
+            new Error(
+              `No events for ${config.IDLE_TIMEOUT / 1000}s, idle timeout`,
+            ),
+          );
+        let idleTimer = setTimeout(onIdle, config.IDLE_TIMEOUT);
+        const resetIdle = () => {
+          clearTimeout(idleTimer);
+          idleTimer = setTimeout(onIdle, config.IDLE_TIMEOUT);
+        };
 
         connectStomp(config, (messageBytes, payload) => {
+          resetIdle();
           const status = handleEvents(messageBytes, payload, config);
           if (status === "finished") {
-            clearTimeout(timer);
+            clearTimeout(idleTimer);
             process.stdout.write("\n");
             resolve();
           } else if (status === "error") {
-            clearTimeout(timer);
+            clearTimeout(idleTimer);
             reject(new Error("Agent run failed"));
           }
         })

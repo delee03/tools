@@ -34,7 +34,7 @@ Options:
 | `AGENT_ID`         | No       | Agent identifier (default: `orchestratorAgent`)                 |
 | `WS_URL`           | Yes      | WebSocket URL (`wss://` or `ws://`)                             |
 | `WS_TOPIC`         | Yes      | STOMP topic to subscribe to (must start with `/`)               |
-| `TIMEOUT`          | No       | Response timeout in ms (default: `120000`)                      |
+| `IDLE_TIMEOUT`     | No       | Max ms without events before timeout (default: `30000`)         |
 | `AGENT_HEADERS`    | No       | Extra HTTP headers for agent requests (`Key:Value,Key2:Value2`) |
 | `WS_STOMP_HEADERS` | No       | STOMP connection/subscribe headers                              |
 | `WS_HEADERS`       | No       | WebSocket connection headers                                    |
