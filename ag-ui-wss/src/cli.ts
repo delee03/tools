@@ -93,7 +93,7 @@ function appendEvent(logFile: string, event: unknown): void {
 // ---------------------------------------------------------------------------
 function connectStomp(
   config: Config,
-  onEvent: (payload: Payload) => void,
+  onEvent: (messageBytes: number, payload: Payload) => void,
 ): Promise<Client> {
   return new Promise((resolve, reject) => {
     const client = new Client({
@@ -115,7 +115,7 @@ function connectStomp(
         (message: IMessage) => {
           const parsed = messageSchema.safeParse(JSON.parse(message.body));
           if (parsed.success && parsed.data.additionalData) {
-            onEvent(parsed.data.additionalData);
+            onEvent(message.body.length, parsed.data.additionalData);
           }
         },
         config.WS_STOMP_HEADERS,
@@ -177,14 +177,19 @@ async function sendMessage(config: Config, message: string): Promise<void> {
 let processedEventCount = 0;
 let startTime = 0;
 let firstTokenTime = 0;
+let conversationBytes = 0;
+let newBytes = 0;
 
 function handleEvents(
+  messageBytes: number,
   payload: Payload,
   config: Config,
 ): "running" | "finished" | "error" {
   if (payload.conversationId && payload.conversationId !== config.threadId) {
     return "running";
   }
+
+  conversationBytes += messageBytes;
 
   const events = payload.events;
   if (!events || events.length === 0) {
@@ -193,6 +198,7 @@ function handleEvents(
 
   const newEvents = events.slice(processedEventCount);
   processedEventCount = events.length;
+  for (const e of newEvents) newBytes += JSON.stringify(e).length;
 
   let status: "running" | "finished" | "error" = "running";
 
@@ -277,8 +283,8 @@ program
           config.TIMEOUT,
         );
 
-        connectStomp(config, (payload) => {
-          const status = handleEvents(payload, config);
+        connectStomp(config, (messageBytes, payload) => {
+          const status = handleEvents(messageBytes, payload, config);
           if (status === "finished") {
             clearTimeout(timer);
             process.stdout.write("\n");
@@ -304,11 +310,17 @@ program
       const ttftMs = firstTokenTime ? firstTokenTime - startTime : null;
       const fmt = (ms: number) =>
         ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+      const fmtKB = (b: number) => `${(b / 1024).toFixed(1)}KB`;
+      const pct = (a: number, b: number) =>
+        b > 0 ? `${((a / b) * 100).toFixed(0)}%` : "N/A";
       console.error(
         chalk.dim(
           [
             ttftMs != null ? `TTFT: ${fmt(ttftMs)}` : null,
             `Total: ${fmt(totalMs)}`,
+            conversationBytes > 0
+              ? `Protocol efficiency: ${fmtKB(newBytes)}/${fmtKB(conversationBytes)} (${pct(newBytes, conversationBytes)})`
+              : null,
           ]
             .filter(Boolean)
             .join("  |  "),
