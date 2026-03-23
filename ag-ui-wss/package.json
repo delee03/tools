@@ -1,0 +1,30 @@
+{
+  "name": "ag-ui-wss",
+  "version": "0.1.0",
+  "description": "CLI client for AG-UI agents over STOMP/WebSocket",
+  "type": "module",
+  "bin": {
+    "ag-ui-wss": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@stomp/stompjs": "^7",
+    "chalk": "^5",
+    "commander": "^14",
+    "serialize-error": "^13",
+    "uuid": "^13",
+    "ws": "^8",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@types/node": "^25",
+    "@types/ws": "^8",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}
