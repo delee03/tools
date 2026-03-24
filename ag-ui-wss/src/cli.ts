@@ -57,7 +57,7 @@ const envSchema = z.object({
   AGENT_ID: z.string().default("orchestratorAgent"),
   WS_URL: z.string().startsWith("wss://").or(z.string().startsWith("ws://")),
   WS_TOPIC: z.string().startsWith("/"),
-  IDLE_TIMEOUT: z.coerce.number().int().positive().default(30_000),
+  IDLE_TIMEOUT: z.coerce.number().int().positive().default(120_000),
   AGENT_HEADERS: headers(),
   WS_STOMP_HEADERS: headers(),
   WS_HEADERS: headers(),
@@ -179,6 +179,8 @@ let startTime = 0;
 let firstTokenTime = 0;
 let conversationBytes = 0;
 let newBytes = 0;
+let lastEventTime = 0;
+const idlePeriods: { startMs: number; durationMs: number }[] = [];
 
 function handleEvents(
   messageBytes: number,
@@ -278,6 +280,7 @@ program
       processedEventCount = 0;
 
       const done = new Promise<void>((resolve, reject) => {
+        const idleThreshold = config.IDLE_TIMEOUT * 0.25;
         const onIdle = () =>
           reject(
             new Error(
@@ -288,6 +291,17 @@ program
         const resetIdle = () => {
           clearTimeout(idleTimer);
           idleTimer = setTimeout(onIdle, config.IDLE_TIMEOUT);
+          const now = performance.now();
+          if (lastEventTime > 0) {
+            const gap = now - lastEventTime;
+            if (gap >= idleThreshold) {
+              idlePeriods.push({
+                startMs: lastEventTime - startTime,
+                durationMs: gap,
+              });
+            }
+          }
+          lastEventTime = now;
         };
 
         connectStomp(config, (messageBytes, payload) => {
@@ -334,6 +348,19 @@ program
             .join("  |  "),
         ),
       );
+
+      if (idlePeriods.length > 0) {
+        console.error(
+          chalk.yellow(
+            `\nWarning: ${idlePeriods.length} idle period(s) exceeded ${fmt(config.IDLE_TIMEOUT * 0.25)} (25% of idle timeout):`,
+          ),
+        );
+        for (const p of idlePeriods) {
+          console.error(
+            chalk.yellow(`  at ${fmt(p.startMs)}: silent for ${fmt(p.durationMs)}`),
+          );
+        }
+      }
     } catch (err) {
       const message =
         err instanceof Error
