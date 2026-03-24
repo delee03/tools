@@ -176,7 +176,8 @@ async function sendMessage(config: Config, message: string): Promise<void> {
 // ---------------------------------------------------------------------------
 let processedEventCount = 0;
 let startTime = 0;
-let firstTokenTime = 0;
+let firstTextTime = 0;
+let firstToolTime = 0;
 let conversationBytes = 0;
 let newBytes = 0;
 let lastEventTime = 0;
@@ -215,11 +216,12 @@ function handleEvents(
     switch (event.type) {
       case "TEXT_MESSAGE_CONTENT":
         if (event.delta) {
-          if (!firstTokenTime) firstTokenTime = performance.now();
+          if (!firstTextTime) firstTextTime = performance.now();
           process.stdout.write(event.delta);
         }
         break;
       case "TOOL_CALL_START":
+        if (!firstToolTime) firstToolTime = performance.now();
         if (event.toolCallName)
           process.stdout.write(chalk.dim(`\n[tool: ${event.toolCallName}] `));
         break;
@@ -329,7 +331,8 @@ program
       await done;
 
       const totalMs = performance.now() - startTime;
-      const ttftMs = firstTokenTime ? firstTokenTime - startTime : null;
+      const ttfTextMs = firstTextTime ? firstTextTime - startTime : null;
+      const ttfToolMs = firstToolTime ? firstToolTime - startTime : null;
       const fmt = (ms: number) =>
         ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
       const fmtKB = (b: number) => `${(b / 1024).toFixed(1)}KB`;
@@ -338,7 +341,8 @@ program
       console.error(
         chalk.dim(
           [
-            ttftMs != null ? `TTFT: ${fmt(ttftMs)}` : null,
+            ttfToolMs != null ? `TTF-Tool: ${fmt(ttfToolMs)}` : null,
+            ttfTextMs != null ? `TTF-Text: ${fmt(ttfTextMs)}` : null,
             `Total: ${fmt(totalMs)}`,
             conversationBytes > 0
               ? `Protocol efficiency: ${fmtKB(newBytes)}/${fmtKB(conversationBytes)} (${pct(newBytes, conversationBytes)})`

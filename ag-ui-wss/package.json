@@ -1,6 +1,6 @@
 {
   "name": "ag-ui-wss",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "CLI client for AG-UI agents over STOMP/WebSocket",
   "repository": {
     "type": "git",
